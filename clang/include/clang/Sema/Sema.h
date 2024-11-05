@@ -6930,16 +6930,22 @@ public:
   /// ActOnCallExpr - Handle a call to Fn with the specified array of arguments.
   /// This provides the location of the left/right parens and a list of comma
   /// locations.
+  // ExprResult ActOnCallExpr(Scope *S, Expr *Fn, SourceLocation LParenLoc,
+  //                          MultiExprArg ArgExprs, SourceLocation RParenLoc,
+  //                          Expr *ExecConfig = nullptr);
   ExprResult ActOnCallExpr(Scope *S, Expr *Fn, SourceLocation LParenLoc,
                            MultiExprArg ArgExprs, SourceLocation RParenLoc,
-                           Expr *ExecConfig = nullptr);
+                           Expr *ExecConfig = nullptr, ArrayRef<Expr*> LaunchExprs = nullptr);
+
 
   /// BuildCallExpr - Handle a call to Fn with the specified array of arguments.
   /// This provides the location of the left/right parens and a list of comma
   /// locations.
+
   ExprResult BuildCallExpr(Scope *S, Expr *Fn, SourceLocation LParenLoc,
                            MultiExprArg ArgExprs, SourceLocation RParenLoc,
                            Expr *ExecConfig = nullptr,
+                           ArrayRef<Expr*> LaunchExprs = nullptr,
                            bool IsExecConfig = false,
                            bool AllowRecovery = false);
 
@@ -6958,7 +6964,7 @@ public:
   /// \param NDecl the declaration being called, if available
   ExprResult
   BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl, SourceLocation LParenLoc,
-                        ArrayRef<Expr *> Arg, SourceLocation RParenLoc,
+                        ArrayRef<Expr *> Arg, ArrayRef<Expr *> LaunchArgs,SourceLocation RParenLoc,
                         Expr *Config = nullptr, bool IsExecConfig = false,
                         ADLCallKind UsesADL = ADLCallKind::NotADL);
 

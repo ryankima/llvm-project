@@ -43,6 +43,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include <optional>
+#include <sstream>
 using namespace clang;
 using namespace CodeGen;
 
@@ -4111,7 +4112,7 @@ static AggValueSlot createPlaceholderSlot(CodeGenFunction &CGF,
                                AggValueSlot::IsNotAliased,
                                AggValueSlot::DoesNotOverlap);
 }
-
+static int call_counter = 0;
 void CodeGenFunction::EmitDelegateCallArg(CallArgList &args,
                                           const VarDecl *param,
                                           SourceLocation loc) {
@@ -5796,6 +5797,35 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   // Apply the attributes and calling convention.
   CI->setAttributes(Attrs);
   CI->setCallingConv(static_cast<llvm::CallingConv::ID>(CallingConv));
+  
+  ArrayRef<Expr *> LaunchArgs = CallInfo.LaunchArgs; 
+  if (!LaunchArgs.empty() && LaunchArgs[0]) {
+    const auto *one = llvm::dyn_cast<clang::IntegerLiteral>(LaunchArgs[0]);
+    llvm::APInt one_int = one->getValue();  // Get the APInt value
+
+    const auto *two = llvm::dyn_cast<clang::IntegerLiteral>(LaunchArgs[1]);
+    llvm::APInt two_int = two->getValue();  // Get the APInt value
+
+    const auto *three = llvm::dyn_cast<clang::IntegerLiteral>(LaunchArgs[2]);
+    llvm::APInt three_int = three->getValue();  // Get the APInt value
+
+    llvm::Constant *constVal1 = llvm::ConstantInt::get(getLLVMContext(), one_int);
+    llvm::Constant *constVal2 = llvm::ConstantInt::get(getLLVMContext(), two_int);
+    llvm::Constant *constVal3 = llvm::ConstantInt::get(getLLVMContext(), three_int);
+
+    llvm::Metadata *mdVal1 = llvm::ConstantAsMetadata::get(constVal1);
+    llvm::Metadata *mdVal2 = llvm::ConstantAsMetadata::get(constVal2);
+    llvm::Metadata *mdVal3 = llvm::ConstantAsMetadata::get(constVal3);
+
+    llvm::MDNode *mdNode = llvm::MDNode::get(getLLVMContext(), {mdVal1, mdVal2, mdVal3});
+
+    //std::stringstream ss;
+    //ss << "unique_call_" << call_counter++;
+    // Step 4: Attach the metadata to the CallInst with a unique key
+    //CI->setMetadata(ss.str(), mdNode);
+    CI->setMetadata("par_args", mdNode);
+  }
+  
 
   // Apply various metadata.
 

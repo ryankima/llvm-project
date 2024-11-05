@@ -4327,6 +4327,11 @@ void Parser::ParseDeclarationSpecifiers(
                                          Loc, PrevSpec, DiagID, Policy);
       isStorageClass = true;
       break;
+    case tok::kw_kernel:
+      isInvalid = DS.SetStorageClassSpec(Actions, DeclSpec::SCS_kernel, Loc,
+                                         PrevSpec, DiagID, Policy);
+      isStorageClass = true;
+      break;
     case tok::kw_static:
       if (DS.getThreadStorageClassSpec() == DeclSpec::TSCS___thread)
         Diag(Tok, diag::ext_thread_before) << "static";

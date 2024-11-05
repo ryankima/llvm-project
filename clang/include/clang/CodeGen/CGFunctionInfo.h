@@ -653,6 +653,8 @@ class CGFunctionInfo final
   CGFunctionInfo() : Required(RequiredArgs::All) {}
 
 public:
+  SmallVector<Expr *> LaunchArgs;
+
   static CGFunctionInfo *
   create(unsigned llvmCC, bool instanceMethod, bool chainCall,
          bool delegateCall, const FunctionType::ExtInfo &extInfo,

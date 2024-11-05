@@ -1476,6 +1476,48 @@ CallExpr::CallExpr(StmtClass SC, Expr *Fn, ArrayRef<Expr *> PreArgs,
     setStoredFPFeatures(FPFeatures);
 }
 
+CallExpr::CallExpr(StmtClass SC, Expr *Fn, ArrayRef<Expr *> PreArgs,
+                   ArrayRef<Expr *> Args, ArrayRef<Expr *> LArgs, QualType Ty, ExprValueKind VK,
+                   SourceLocation RParenLoc, FPOptionsOverride FPFeatures,
+                   unsigned MinNumArgs, ADLCallKind UsesADL)
+    : Expr(SC, Ty, VK, OK_Ordinary), RParenLoc(RParenLoc) {
+  NumArgs = std::max<unsigned>(Args.size(), MinNumArgs);
+  unsigned NumPreArgs = PreArgs.size();
+  CallExprBits.NumPreArgs = NumPreArgs;
+  if (!LArgs.empty()) {
+    for (int i = 0; i < 3; i++) {
+      LaunchArgs[i] = LArgs[i];
+    }
+  } else {
+    for (int i = 0; i < 3; i++) {
+      LaunchArgs[i] = nullptr;
+    }
+  }
+  assert((NumPreArgs == getNumPreArgs()) && "NumPreArgs overflow!");
+
+  unsigned OffsetToTrailingObjects = offsetToTrailingObjects(SC);
+  CallExprBits.OffsetToTrailingObjects = OffsetToTrailingObjects;
+  assert((CallExprBits.OffsetToTrailingObjects == OffsetToTrailingObjects) &&
+         "OffsetToTrailingObjects overflow!");
+
+  CallExprBits.UsesADL = static_cast<bool>(UsesADL);
+
+  setCallee(Fn);
+  for (unsigned I = 0; I != NumPreArgs; ++I)
+    setPreArg(I, PreArgs[I]);
+  for (unsigned I = 0; I != Args.size(); ++I)
+    setArg(I, Args[I]);
+  for (unsigned I = Args.size(); I != NumArgs; ++I)
+    setArg(I, nullptr);
+
+  this->computeDependence();
+
+  CallExprBits.HasFPFeatures = FPFeatures.requiresTrailingStorage();
+  CallExprBits.IsCoroElideSafe = false;
+  if (hasStoredFPFeatures())
+    setStoredFPFeatures(FPFeatures);
+}
+
 CallExpr::CallExpr(StmtClass SC, unsigned NumPreArgs, unsigned NumArgs,
                    bool HasFPFeatures, EmptyShell Empty)
     : Expr(SC, Empty), NumArgs(NumArgs) {
@@ -1501,6 +1543,20 @@ CallExpr *CallExpr::Create(const ASTContext &Ctx, Expr *Fn,
   void *Mem =
       Ctx.Allocate(sizeof(CallExpr) + SizeOfTrailingObjects, alignof(CallExpr));
   return new (Mem) CallExpr(CallExprClass, Fn, /*PreArgs=*/{}, Args, Ty, VK,
+                            RParenLoc, FPFeatures, MinNumArgs, UsesADL);
+}
+
+CallExpr *CallExpr::Create(const ASTContext &Ctx, Expr *Fn,
+                           ArrayRef<Expr *> Args, ArrayRef<Expr *> LaunchArgs, QualType Ty, ExprValueKind VK,
+                           SourceLocation RParenLoc,
+                           FPOptionsOverride FPFeatures, unsigned MinNumArgs,
+                           ADLCallKind UsesADL) {
+  unsigned NumArgs = std::max<unsigned>(Args.size(), MinNumArgs);
+  unsigned SizeOfTrailingObjects = CallExpr::sizeOfTrailingObjects(
+      /*NumPreArgs=*/0, NumArgs, FPFeatures.requiresTrailingStorage());
+  void *Mem =
+      Ctx.Allocate(sizeof(CallExpr) + SizeOfTrailingObjects, alignof(CallExpr));
+  return new (Mem) CallExpr(CallExprClass, Fn, /*PreArgs=*/{}, Args, LaunchArgs, Ty, VK,
                             RParenLoc, FPFeatures, MinNumArgs, UsesADL);
 }
 

@@ -64,7 +64,7 @@ ExprResult SemaCUDA::ActOnExecConfigExpr(Scope *S, SourceLocation LLLLoc,
       getASTContext(), ConfigDecl, false, ConfigQTy, VK_LValue, LLLLoc);
   SemaRef.MarkFunctionReferenced(LLLLoc, ConfigDecl);
 
-  return SemaRef.BuildCallExpr(S, ConfigDR, LLLLoc, ExecConfig, GGGLoc, nullptr,
+  return SemaRef.BuildCallExpr(S, ConfigDR, LLLLoc, ExecConfig, GGGLoc, nullptr, nullptr,
                                /*IsExecConfig=*/true);
 }
 

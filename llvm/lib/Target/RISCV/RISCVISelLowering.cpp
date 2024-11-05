@@ -19636,6 +19636,57 @@ SDValue RISCVTargetLowering::LowerCall(CallLoweringInfo &CLI,
 
   MachineFunction &MF = DAG.getMachineFunction();
 
+  TypeSize intSize = Type::getInt32Ty(*DAG.getContext())->getPrimitiveSizeInBits();
+
+  
+  SDValue StackSlotX28 = DAG.CreateStackTemporary(intSize, Align(4)); // Adjust size and alignment as needed
+  SDValue StackSlotX29 = DAG.CreateStackTemporary(intSize, Align(4));
+  SDValue StackSlotX30 = DAG.CreateStackTemporary(intSize, Align(4));
+  
+  // Save registers x28, x29, and x30
+  Chain = DAG.getStore(Chain, DL, DAG.getCopyFromReg(Chain, DL, RISCV::X28, XLenVT), 
+                      StackSlotX28, MachinePointerInfo::getFixedStack(MF, cast<FrameIndexSDNode>(StackSlotX28.getNode())->getIndex()));
+  Chain = DAG.getStore(Chain, DL, DAG.getCopyFromReg(Chain, DL, RISCV::X29, XLenVT), 
+                      StackSlotX29, MachinePointerInfo::getFixedStack(MF, cast<FrameIndexSDNode>(StackSlotX29.getNode())->getIndex()));
+  Chain = DAG.getStore(Chain, DL, DAG.getCopyFromReg(Chain, DL, RISCV::X30, XLenVT), 
+                      StackSlotX30, MachinePointerInfo::getFixedStack(MF, cast<FrameIndexSDNode>(StackSlotX30.getNode())->getIndex()));
+
+  if (CLI.CB->getMetadata("par_args")) {
+    auto largnode = CLI.CB->getMetadata("par_args");
+
+    auto *constMD1 = llvm::dyn_cast<llvm::ConstantAsMetadata>(largnode->getOperand(0).get());
+    auto *constMD2 = llvm::dyn_cast<llvm::ConstantAsMetadata>(largnode->getOperand(1).get());
+    auto *constMD3 = llvm::dyn_cast<llvm::ConstantAsMetadata>(largnode->getOperand(2).get());
+
+    auto *C1 = llvm::dyn_cast<llvm::ConstantInt>(constMD1->getValue());
+    auto *C2 = llvm::dyn_cast<llvm::ConstantInt>(constMD2->getValue());
+    auto *C3 = llvm::dyn_cast<llvm::ConstantInt>(constMD3->getValue());
+
+    int V1 = C1->getSExtValue();
+    int V2 = C2->getSExtValue();
+    int V3 = C3->getSExtValue();
+    
+    // Create integer constants to be stored in registers
+    SDValue ConstValueX28 = DAG.getConstant(V1, DL, XLenVT); // Replace 42 with your desired constant for x28
+    SDValue ConstValueX29 = DAG.getConstant(V2, DL, XLenVT); // Replace 84 with your desired constant for x29
+    SDValue ConstValueX30 = DAG.getConstant(V3, DL, XLenVT); // Replace 126 with your desired constant for x30
+
+    // Use DAG.getCopyToReg to store constants in the registers
+    Chain = DAG.getCopyToReg(Chain, DL, RISCV::X28, ConstValueX28);
+    Chain = DAG.getCopyToReg(Chain, DL, RISCV::X29, ConstValueX29);
+    Chain = DAG.getCopyToReg(Chain, DL, RISCV::X30, ConstValueX30);
+
+
+  } else {
+    // Create integer constants to be stored in registers
+    SDValue ConstValueOne = DAG.getConstant(1, DL, XLenVT); // Replace 42 with your desired constant for x28
+
+    // Use DAG.getCopyToReg to store constants in the registers
+    Chain = DAG.getCopyToReg(Chain, DL, RISCV::X28, ConstValueOne);
+    Chain = DAG.getCopyToReg(Chain, DL, RISCV::X29, ConstValueOne);
+    Chain = DAG.getCopyToReg(Chain, DL, RISCV::X30, ConstValueOne);
+  }
+
   // Analyze the operands of the call, assigning locations to each operand.
   SmallVector<CCValAssign, 16> ArgLocs;
   CCState ArgCCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
@@ -19937,6 +19988,14 @@ SDValue RISCVTargetLowering::LowerCall(CallLoweringInfo &CLI,
 
     InVals.push_back(RetValue);
   }
+
+  // After the call, restore the registers
+  Chain = DAG.getCopyToReg(Chain, DL, RISCV::X28, DAG.getLoad(XLenVT, DL, Chain, StackSlotX28, 
+                        MachinePointerInfo::getFixedStack(MF, cast<FrameIndexSDNode>(StackSlotX28.getNode())->getIndex())));
+  Chain = DAG.getCopyToReg(Chain, DL, RISCV::X29, DAG.getLoad(XLenVT, DL, Chain, StackSlotX29, 
+                        MachinePointerInfo::getFixedStack(MF, cast<FrameIndexSDNode>(StackSlotX29.getNode())->getIndex())));
+  Chain = DAG.getCopyToReg(Chain, DL, RISCV::X30, DAG.getLoad(XLenVT, DL, Chain, StackSlotX30, 
+                        MachinePointerInfo::getFixedStack(MF, cast<FrameIndexSDNode>(StackSlotX30.getNode())->getIndex())));
 
   return Chain;
 }

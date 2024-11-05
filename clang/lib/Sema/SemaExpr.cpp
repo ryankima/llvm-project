@@ -6427,47 +6427,11 @@ static void DiagnosedUnqualifiedCallsToStdFunctions(Sema &S,
       << FixItHint::CreateInsertion(DRE->getLocation(), "std::");
 }
 
-ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
-                               MultiExprArg ArgExprs, SourceLocation RParenLoc,
-                               Expr *ExecConfig) {
-  ExprResult Call =
-      BuildCallExpr(Scope, Fn, LParenLoc, ArgExprs, RParenLoc, ExecConfig,
-                    /*IsExecConfig=*/false, /*AllowRecovery=*/true);
-  if (Call.isInvalid())
-    return Call;
 
-  // Diagnose uses of the C++20 "ADL-only template-id call" feature in earlier
-  // language modes.
-  if (const auto *ULE = dyn_cast<UnresolvedLookupExpr>(Fn);
-      ULE && ULE->hasExplicitTemplateArgs() &&
-      ULE->decls_begin() == ULE->decls_end()) {
-    Diag(Fn->getExprLoc(), getLangOpts().CPlusPlus20
-                               ? diag::warn_cxx17_compat_adl_only_template_id
-                               : diag::ext_adl_only_template_id)
-        << ULE->getName();
-  }
-
-  if (LangOpts.OpenMP)
-    Call = OpenMP().ActOnOpenMPCall(Call, Scope, LParenLoc, ArgExprs, RParenLoc,
-                                    ExecConfig);
-  if (LangOpts.CPlusPlus) {
-    if (const auto *CE = dyn_cast<CallExpr>(Call.get()))
-      DiagnosedUnqualifiedCallsToStdFunctions(*this, CE);
-
-    // If we previously found that the id-expression of this call refers to a
-    // consteval function but the call is dependent, we should not treat is an
-    // an invalid immediate call.
-    if (auto *DRE = dyn_cast<DeclRefExpr>(Fn->IgnoreParens());
-        DRE && Call.get()->isValueDependent()) {
-      currentEvaluationContext().ReferenceToConsteval.erase(DRE);
-    }
-  }
-  return Call;
-}
 
 ExprResult Sema::BuildCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
                                MultiExprArg ArgExprs, SourceLocation RParenLoc,
-                               Expr *ExecConfig, bool IsExecConfig,
+                               Expr *ExecConfig, ArrayRef<Expr *> LaunchExprs, bool IsExecConfig,
                                bool AllowRecovery) {
   // Since this might be a postfix expression, get rid of ParenListExprs.
   ExprResult Result = MaybeConvertParenListExprToParenExpr(Scope, Fn);
@@ -6488,7 +6452,7 @@ ExprResult Sema::BuildCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
                                ArgExprs.back()->getEndLoc()));
       }
 
-      return CallExpr::Create(Context, Fn, /*Args=*/{}, Context.VoidTy,
+      return CallExpr::Create(Context, Fn, /*Args=*/{}, LaunchExprs, Context.VoidTy,
                               VK_PRValue, RParenLoc, CurFPFeatureOverrides());
     }
     if (Fn->getType() == Context.PseudoObjectTy) {
@@ -6511,7 +6475,7 @@ ExprResult Sema::BuildCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
             *this, dyn_cast<UnresolvedMemberExpr>(Fn->IgnoreParens()),
             Fn->getBeginLoc());
 
-        return CallExpr::Create(Context, Fn, ArgExprs, Context.DependentTy,
+        return CallExpr::Create(Context, Fn, ArgExprs, LaunchExprs, Context.DependentTy,
                                 VK_PRValue, RParenLoc, CurFPFeatureOverrides());
       }
     }
@@ -6541,7 +6505,7 @@ ExprResult Sema::BuildCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
     // We aren't supposed to apply this logic if there's an '&' involved.
     if (!find.HasFormOfMemberPointer || find.IsAddressOfOperandWithParen) {
       if (Expr::hasAnyTypeDependentArguments(ArgExprs))
-        return CallExpr::Create(Context, Fn, ArgExprs, Context.DependentTy,
+        return CallExpr::Create(Context, Fn, ArgExprs, LaunchExprs, Context.DependentTy,
                                 VK_PRValue, RParenLoc, CurFPFeatureOverrides());
       OverloadExpr *ovl = find.Expression;
       if (UnresolvedLookupExpr *ULE = dyn_cast<UnresolvedLookupExpr>(ovl))
@@ -6662,8 +6626,47 @@ ExprResult Sema::BuildCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
     return CallExpr::Create(Context, Fn, ArgExprs, Context.DependentTy,
                             VK_PRValue, RParenLoc, CurFPFeatureOverrides());
   }
-  return BuildResolvedCallExpr(Fn, NDecl, LParenLoc, ArgExprs, RParenLoc,
+
+  return BuildResolvedCallExpr(Fn, NDecl, LParenLoc, ArgExprs,LaunchExprs, RParenLoc,
                                ExecConfig, IsExecConfig);
+}
+
+ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
+                               MultiExprArg ArgExprs, SourceLocation RParenLoc,
+                               Expr *ExecConfig, ArrayRef<Expr *> LaunchExprs) {
+  ExprResult Call =
+      BuildCallExpr(Scope, Fn, LParenLoc, ArgExprs, RParenLoc, ExecConfig, LaunchExprs,
+                    /*IsExecConfig=*/false, /*AllowRecovery=*/true);
+  if (Call.isInvalid())
+    return Call;
+
+  // Diagnose uses of the C++20 "ADL-only template-id call" feature in earlier
+  // language modes.
+  if (const auto *ULE = dyn_cast<UnresolvedLookupExpr>(Fn);
+      ULE && ULE->hasExplicitTemplateArgs() &&
+      ULE->decls_begin() == ULE->decls_end()) {
+    Diag(Fn->getExprLoc(), getLangOpts().CPlusPlus20
+                               ? diag::warn_cxx17_compat_adl_only_template_id
+                               : diag::ext_adl_only_template_id)
+        << ULE->getName();
+  }
+
+  if (LangOpts.OpenMP)
+    Call = OpenMP().ActOnOpenMPCall(Call, Scope, LParenLoc, ArgExprs, RParenLoc,
+                                    ExecConfig);
+  if (LangOpts.CPlusPlus) {
+    if (const auto *CE = dyn_cast<CallExpr>(Call.get()))
+      DiagnosedUnqualifiedCallsToStdFunctions(*this, CE);
+
+    // If we previously found that the id-expression of this call refers to a
+    // consteval function but the call is dependent, we should not treat is an
+    // an invalid immediate call.
+    if (auto *DRE = dyn_cast<DeclRefExpr>(Fn->IgnoreParens());
+        DRE && Call.get()->isValueDependent()) {
+      currentEvaluationContext().ReferenceToConsteval.erase(DRE);
+    }
+  }
+  return Call;
 }
 
 Expr *Sema::BuildBuiltinCallExpr(SourceLocation Loc, Builtin::ID Id,
@@ -6718,7 +6721,7 @@ ExprResult Sema::ActOnConvertVectorExpr(Expr *E, ParsedType ParsedDestTy,
 
 ExprResult Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
                                        SourceLocation LParenLoc,
-                                       ArrayRef<Expr *> Args,
+                                       ArrayRef<Expr *> Args, ArrayRef<Expr *> LaunchArgs,
                                        SourceLocation RParenLoc, Expr *Config,
                                        bool IsExecConfig, ADLCallKind UsesADL) {
   FunctionDecl *FDecl = dyn_cast_or_null<FunctionDecl>(NDecl);
@@ -6823,7 +6826,7 @@ ExprResult Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
                                          CurFPFeatureOverrides(), NumParams);
   } else {
     TheCall =
-        CallExpr::Create(Context, Fn, Args, ResultTy, VK_PRValue, RParenLoc,
+        CallExpr::Create(Context, Fn, Args, LaunchArgs, ResultTy, VK_PRValue, RParenLoc,
                          CurFPFeatureOverrides(), NumParams, UsesADL);
   }
 
@@ -6854,7 +6857,7 @@ ExprResult Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
             RParenLoc, CurFPFeatureOverrides(), NumParams);
       else
         TheCall =
-            CallExpr::Create(Context, Fn, Args, ResultTy, VK_PRValue, RParenLoc,
+            CallExpr::Create(Context, Fn, Args, LaunchArgs, ResultTy, VK_PRValue, RParenLoc,
                              CurFPFeatureOverrides(), NumParams, UsesADL);
     }
     // We can now handle the nulled arguments for the default arguments.

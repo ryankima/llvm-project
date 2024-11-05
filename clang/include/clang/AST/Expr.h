@@ -2876,6 +2876,7 @@ class CallExpr : public Expr {
 
   /// The number of arguments in the call expression.
   unsigned NumArgs;
+  Expr * LaunchArgs[3]; 
 
   /// The location of the right parentheses. This has a different meaning for
   /// the derived classes of CallExpr.
@@ -2936,6 +2937,11 @@ protected:
   /// allocated for the trailing objects.
   CallExpr(StmtClass SC, Expr *Fn, ArrayRef<Expr *> PreArgs,
            ArrayRef<Expr *> Args, QualType Ty, ExprValueKind VK,
+           SourceLocation RParenLoc, FPOptionsOverride FPFeatures,
+           unsigned MinNumArgs, ADLCallKind UsesADL);
+
+  CallExpr(StmtClass SC, Expr *Fn, ArrayRef<Expr *> PreArgs,
+           ArrayRef<Expr *> Args, ArrayRef<Expr *> LArgs, QualType Ty, ExprValueKind VK,
            SourceLocation RParenLoc, FPOptionsOverride FPFeatures,
            unsigned MinNumArgs, ADLCallKind UsesADL);
 
@@ -3004,6 +3010,11 @@ public:
                           SourceLocation RParenLoc,
                           FPOptionsOverride FPFeatures, unsigned MinNumArgs = 0,
                           ADLCallKind UsesADL = NotADL);
+  static CallExpr *Create(const ASTContext &Ctx, Expr *Fn,
+                           ArrayRef<Expr *> Args, ArrayRef<Expr *> LaunchArgs, QualType Ty, ExprValueKind VK,
+                           SourceLocation RParenLoc,
+                           FPOptionsOverride FPFeatures, unsigned MinNumArgs = 0,
+                           ADLCallKind UsesADL = NotADL);
 
   /// Create a temporary call expression with no arguments in the memory
   /// pointed to by Mem. Mem must points to at least sizeof(CallExpr)
@@ -3062,6 +3073,14 @@ public:
   const Expr *const *getArgs() const {
     return reinterpret_cast<const Expr *const *>(
         getTrailingStmts() + PREARGS_START + getNumPreArgs());
+  }
+
+  Expr *getLArg(unsigned Arg) {
+    return LaunchArgs[Arg];
+  }
+  
+  ArrayRef<Expr *> getLaunchArgs() const{
+    return LaunchArgs;
   }
 
   /// getArg - Return the specified argument.

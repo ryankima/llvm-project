@@ -1984,6 +1984,7 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
   // parsed, see if there are any postfix-expression pieces here.
   SourceLocation Loc;
   auto SavedType = PreferredType;
+  
   while (true) {
     // Each iteration relies on preferred type for the whole expression.
     PreferredType = SavedType;
@@ -2141,15 +2142,16 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
     case tok::l_paren:         // p-e: p-e '(' argument-expression-list[opt] ')'
     case tok::lesslessless: {  // p-e: p-e '<<<' argument-expression-list '>>>'
                                //   '(' argument-expression-list[opt] ')'
+                               
       tok::TokenKind OpKind = Tok.getKind();
       InMessageExpressionRAIIObject InMessage(*this, false);
 
       Expr *ExecConfig = nullptr;
+      ExprVector ExecConfigExprs;
 
       BalancedDelimiterTracker PT(*this, tok::l_paren);
 
       if (OpKind == tok::lesslessless) {
-        ExprVector ExecConfigExprs;
         SourceLocation OpenLoc = ConsumeToken();
 
         if (ParseSimpleExpressionList(ExecConfigExprs)) {
@@ -2177,12 +2179,14 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
         }
 
         if (!LHS.isInvalid()) {
-          ExprResult ECResult = Actions.CUDA().ActOnExecConfigExpr(
-              getCurScope(), OpenLoc, ExecConfigExprs, CloseLoc);
-          if (ECResult.isInvalid())
-            LHS = ExprError();
-          else
-            ExecConfig = ECResult.get();
+          if (getLangOpts().CUDA) {
+            ExprResult ECResult = Actions.CUDA().ActOnExecConfigExpr(
+                getCurScope(), OpenLoc, ExecConfigExprs, CloseLoc);
+            if (ECResult.isInvalid())
+              LHS = ExprError();
+            else
+              ExecConfig = ECResult.get();
+          } 
         }
       } else {
         PT.consumeOpen();
@@ -2240,7 +2244,7 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
         Expr *Fn = LHS.get();
         SourceLocation RParLoc = Tok.getLocation();
         LHS = Actions.ActOnCallExpr(getCurScope(), Fn, Loc, ArgExprs, RParLoc,
-                                    ExecConfig);
+                                    ExecConfig, ExecConfigExprs);
         if (LHS.isInvalid()) {
           ArgExprs.insert(ArgExprs.begin(), Fn);
           LHS =

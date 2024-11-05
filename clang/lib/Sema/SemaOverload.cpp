@@ -14042,7 +14042,7 @@ static ExprResult FinishOverloadedCallExpr(Sema &SemaRef, Scope *S, Expr *Fn,
     if (Res.isInvalid())
       return ExprError();
     return SemaRef.BuildResolvedCallExpr(
-        Res.get(), FDecl, LParenLoc, Args, RParenLoc, ExecConfig,
+        Res.get(), FDecl, LParenLoc, Args, {}, RParenLoc, ExecConfig,
         /*IsExecConfig=*/false, (*Best)->IsADLCandidate);
   }
 
@@ -14116,7 +14116,7 @@ static ExprResult FinishOverloadedCallExpr(Sema &SemaRef, Scope *S, Expr *Fn,
     if (Res.isInvalid())
       return ExprError();
     return SemaRef.BuildResolvedCallExpr(
-        Res.get(), FDecl, LParenLoc, Args, RParenLoc, ExecConfig,
+        Res.get(), FDecl, LParenLoc, Args, {}, RParenLoc, ExecConfig,
         /*IsExecConfig=*/false, (*Best)->IsADLCandidate);
   }
   }
@@ -15543,7 +15543,7 @@ ExprResult Sema::BuildCallToMemberFunction(Scope *S, Expr *MemExprE,
     // If overload resolution picked a static member
     // build a non-member call based on that function.
     if (Method->isStatic()) {
-      return BuildResolvedCallExpr(MemExprE, Method, LParenLoc, Args, RParenLoc,
+      return BuildResolvedCallExpr(MemExprE, Method, LParenLoc, Args, {}, RParenLoc,
                                    ExecConfig, IsExecConfig);
     }
 

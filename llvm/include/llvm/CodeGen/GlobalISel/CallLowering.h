@@ -115,6 +115,8 @@ public:
     /// Descriptor for the return type of the function.
     ArgInfo OrigRet;
 
+    SmallVector<int, 3> LArgs;
+
     /// List of descriptors of the arguments passed to the function.
     SmallVector<ArgInfo, 32> OrigArgs;
 

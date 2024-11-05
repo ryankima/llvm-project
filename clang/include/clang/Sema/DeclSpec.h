@@ -252,6 +252,7 @@ public:
     SCS_unspecified = 0,
     SCS_typedef,
     SCS_extern,
+    SCS_kernel,
     SCS_static,
     SCS_auto,
     SCS_register,

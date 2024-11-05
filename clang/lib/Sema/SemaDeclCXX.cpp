@@ -17223,7 +17223,7 @@ bool Sema::EvaluateStaticAssertMessageAsString(Expr *Message,
         CXXScopeSpec(), SourceLocation(), nullptr, LR, nullptr, nullptr);
     if (Res.isInvalid())
       return ExprError();
-    Res = BuildCallExpr(nullptr, Res.get(), Loc, {}, Loc, nullptr, false, true);
+    Res = BuildCallExpr(nullptr, Res.get(), Loc, {}, Loc, nullptr, nullptr, false, true);
     if (Res.isInvalid())
       return ExprError();
     if (Res.get()->isTypeDependent() || Res.get()->isValueDependent())

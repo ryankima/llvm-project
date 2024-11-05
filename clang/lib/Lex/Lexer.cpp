@@ -4231,7 +4231,7 @@ LexStart:
         // If this is '<<<<' and we're in a Perforce-style conflict marker,
         // ignore it.
         goto LexNextToken;
-      } else if (LangOpts.CUDA && After == '<') {
+      } else if (After == '<') {
         Kind = tok::lesslessless;
         CurPtr = ConsumeChar(ConsumeChar(CurPtr, SizeTmp, Result),
                              SizeTmp2, Result);
@@ -4308,7 +4308,7 @@ LexStart:
       } else if (After == '>' && HandleEndOfConflictMarker(CurPtr-1)) {
         // If this is '>>>>>>>' and we're in a conflict marker, ignore it.
         goto LexNextToken;
-      } else if (LangOpts.CUDA && After == '>') {
+      } else if (After == '>') {
         Kind = tok::greatergreatergreater;
         CurPtr = ConsumeChar(ConsumeChar(CurPtr, SizeTmp, Result),
                              SizeTmp2, Result);

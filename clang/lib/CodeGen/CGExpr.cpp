@@ -6133,8 +6133,16 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType,
   EmitCallArgs(Args, dyn_cast<FunctionProtoType>(FnType), Arguments,
                E->getDirectCallee(), /*ParamsToSkip=*/0, Order);
 
-  const CGFunctionInfo &FnInfo = CGM.getTypes().arrangeFreeFunctionCall(
-      Args, FnType, /*ChainCall=*/Chain);
+  CGFunctionInfo &FnInfo = const_cast<CGFunctionInfo&>(CGM.getTypes().arrangeFreeFunctionCall(
+      Args, FnType, /*ChainCall=*/Chain));
+
+  FnInfo.LaunchArgs.resize(3);
+  auto t = E->getLaunchArgs();
+  if (!t.empty()) {
+    for (int i = 0; i < 3; i++) {
+      FnInfo.LaunchArgs[i] = t[i];
+    }
+  }
 
   if (ResolvedFnInfo)
     *ResolvedFnInfo = &FnInfo;
